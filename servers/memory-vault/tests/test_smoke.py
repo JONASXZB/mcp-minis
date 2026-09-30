@@ -67,6 +67,32 @@ def test_update_note():
     assert "Error" in server.update_note(999, title="x")  # no such note
 
 
+def test_update_note_none_keeps_and_empty_string_clears():
+    note_id = _saved_id(server.save_note("Keep", "original body", "a, b"))
+    # Omitting tags (None) keeps the existing tag list.
+    assert "Updated" in server.update_note(note_id, content="second body")
+    full = server.get_note(note_id)
+    assert "a, b" in full and "second body" in full
+    # Passing tags="" explicitly clears the whole tag list.
+    assert "Updated" in server.update_note(note_id, tags="")
+    full = server.get_note(note_id)
+    assert "Tags: (none)" in full
+    assert "Keep" in full and "second body" in full  # other fields untouched
+    # Passing content="" explicitly empties the body.
+    assert "Updated" in server.update_note(note_id, content="")
+    full = server.get_note(note_id)
+    assert "second body" not in full
+    # Passing nothing at all (all fields None) is still an error.
+    assert "Error" in server.update_note(note_id)
+
+
+def test_update_note_rejects_blank_title():
+    note_id = _saved_id(server.save_note("Titled", "body"))
+    assert "Error" in server.update_note(note_id, title="")
+    assert "Error" in server.update_note(note_id, title="   ")
+    assert "Titled" in server.get_note(note_id)
+
+
 def test_search_is_safe_against_fts_syntax():
     server.save_note("Symbols", "Notes about *stars* and (parens).")
     # Raw FTS operators in the query must not crash the search.
