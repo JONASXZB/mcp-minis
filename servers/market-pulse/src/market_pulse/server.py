@@ -165,7 +165,9 @@ def get_fx_rate(base: str, target: str) -> str:
 def convert_currency(amount: float, base: str, target: str) -> str:
     """Convert an amount from one currency to another.
 
-    Uses ECB daily reference rates via the Frankfurter API.
+    Uses ECB daily reference rates via the Frankfurter API. Converting a
+    currency into itself, or converting an amount of 0, returns
+    immediately without calling the API.
 
     Args:
         amount: The amount to convert, e.g. ``250``.
@@ -178,6 +180,16 @@ def convert_currency(amount: float, base: str, target: str) -> str:
     base, target = base.strip().upper(), target.strip().upper()
     if len(base) != 3 or len(target) != 3:
         return "Error: currency codes must be 3 letters, e.g. USD, EUR, CNY."
+    if base == target:
+        return (
+            f"{amount:,.2f} {base} = {amount:,.2f} {target}\n"
+            f"Rate: 1 {base} = 1.0000 {target} (same currency)"
+        )
+    if amount == 0:
+        return (
+            f"{amount:,.2f} {base} = {amount:,.2f} {target}\n"
+            "Rate: n/a (zero amount converts to zero in any currency)"
+        )
     try:
         data = _fetch_fx(amount, base, target)
         converted = data["rates"][target]
@@ -188,7 +200,7 @@ def convert_currency(amount: float, base: str, target: str) -> str:
         )
     except (httpx.HTTPError, httpx.InvalidURL, KeyError, TypeError, ValueError) as exc:
         return f"Error: failed to convert {base}->{target}: {exc}"
-    rate = converted / amount if amount else 0.0
+    rate = converted / amount
     return (
         f"{amount:,.2f} {base} = {converted:,.2f} {target}\n"
         f"Rate: 1 {base} = {rate:.4f} {target} "
