@@ -15,6 +15,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -122,26 +123,39 @@ def save_note(title: str, content: str, tags: str = "") -> str:
 
 
 @mcp.tool()
-def update_note(note_id: int, title: str = "", content: str = "", tags: str = "") -> str:
+def update_note(
+    note_id: int,
+    title: Optional[str] = None,
+    content: Optional[str] = None,
+    tags: Optional[str] = None,
+) -> str:
     """Update an existing note in the vault.
 
-    Only the fields you pass are changed; fields left empty keep their
-    current values. Passing ``tags`` replaces the note's whole tag list.
+    Only the fields you pass are changed; omit a field (or pass ``None``)
+    to keep its current value. Passing a field replaces it wholesale:
+    ``content=""`` empties the note's body and ``tags=""`` clears all its
+    tags. A title cannot be cleared — a passed title must be non-empty
+    (the same rule ``save_note`` applies).
 
     Args:
         note_id: The numeric ID of the note to update.
-        title: New title, or empty to keep the current one.
-        content: New body text, or empty to keep the current one.
-        tags: New comma-separated tag list, or empty to keep current tags.
+        title: New title, or omit to keep the current one.
+        content: New body text, or omit to keep the current one;
+            ``""`` clears the body.
+        tags: New comma-separated tag list replacing the whole list, or
+            omit to keep current tags; ``""`` clears all tags.
 
     Returns:
         A confirmation, or an error message if the note does not exist or
         nothing was provided to change.
     """
-    new_title = title.strip()
-    new_tags = ", ".join(t.strip() for t in tags.split(",") if t.strip())
-    if not new_title and not content.strip() and not new_tags:
+    if title is None and content is None and tags is None:
         return "Error: provide at least one of title, content, or tags to update."
+    if title is not None and not title.strip():
+        return "Error: title must not be empty."
+    new_tags = None
+    if tags is not None:
+        new_tags = ", ".join(t.strip() for t in tags.split(",") if t.strip())
     try:
         with _connect() as conn:
             row = conn.execute(
@@ -153,9 +167,9 @@ def update_note(note_id: int, title: str = "", content: str = "", tags: str = ""
                 "UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = ? "
                 "WHERE id = ?",
                 (
-                    new_title or row["title"],
-                    content if content.strip() else row["content"],
-                    new_tags or row["tags"],
+                    title.strip() if title is not None else row["title"],
+                    content if content is not None else row["content"],
+                    new_tags if new_tags is not None else row["tags"],
                     _now(),
                     note_id,
                 ),
