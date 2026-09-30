@@ -31,3 +31,18 @@ def test_extract_garbage_returns_none():
 def test_timestamp_format():
     assert server._format_timestamp(3661.7) == "01:01:01"
     assert server._format_timestamp(5) == "00:00:05"
+
+
+def test_proxy_env_is_honored(monkeypatch):
+    monkeypatch.delenv("HTTPS_PROXY", raising=False)
+    monkeypatch.delenv("https_proxy", raising=False)
+    monkeypatch.setenv("YOUTUBE_TRANSCRIPT_PROXY", "http://127.0.0.1:8080")
+    api = server._build_api()
+    assert api._fetcher._proxy_config is not None
+
+
+def test_no_proxy_by_default(monkeypatch):
+    for var in ("YOUTUBE_TRANSCRIPT_PROXY", "HTTPS_PROXY", "https_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    api = server._build_api()
+    assert api._fetcher._proxy_config is None

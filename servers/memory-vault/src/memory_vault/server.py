@@ -122,6 +122,50 @@ def save_note(title: str, content: str, tags: str = "") -> str:
 
 
 @mcp.tool()
+def update_note(note_id: int, title: str = "", content: str = "", tags: str = "") -> str:
+    """Update an existing note in the vault.
+
+    Only the fields you pass are changed; fields left empty keep their
+    current values. Passing ``tags`` replaces the note's whole tag list.
+
+    Args:
+        note_id: The numeric ID of the note to update.
+        title: New title, or empty to keep the current one.
+        content: New body text, or empty to keep the current one.
+        tags: New comma-separated tag list, or empty to keep current tags.
+
+    Returns:
+        A confirmation, or an error message if the note does not exist or
+        nothing was provided to change.
+    """
+    new_title = title.strip()
+    new_tags = ", ".join(t.strip() for t in tags.split(",") if t.strip())
+    if not new_title and not content.strip() and not new_tags:
+        return "Error: provide at least one of title, content, or tags to update."
+    try:
+        with _connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM notes WHERE id = ?", (note_id,)
+            ).fetchone()
+            if row is None:
+                return f"Error: no note with ID {note_id}."
+            conn.execute(
+                "UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = ? "
+                "WHERE id = ?",
+                (
+                    new_title or row["title"],
+                    content if content.strip() else row["content"],
+                    new_tags or row["tags"],
+                    _now(),
+                    note_id,
+                ),
+            )
+    except sqlite3.Error as exc:
+        return f"Error: failed to update note: {exc}"
+    return f"Updated note #{note_id}."
+
+
+@mcp.tool()
 def search_notes(query: str) -> str:
     """Full-text search the vault (title, content, and tags).
 

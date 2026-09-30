@@ -3,6 +3,7 @@
 **Five tiny, single-purpose [MCP](https://modelcontextprotocol.io) servers that give your AI agent superpowers — no API keys, no sign-ups, no bloat.**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![CI](https://github.com/JONASXZB/mcp-minis/actions/workflows/ci.yml/badge.svg)](https://github.com/JONASXZB/mcp-minis/actions/workflows/ci.yml)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-6E56CF)](https://modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)

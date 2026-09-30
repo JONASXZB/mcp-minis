@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "youtube-transcript"
-version = "0.1.0"
+version = "0.2.0"
 description = "A tiny MCP server that fetches YouTube transcripts (captions) as timestamped text."
 readme = "README.md"
 requires-python = ">=3.10"

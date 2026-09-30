@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-vault"
-version = "0.1.0"
+version = "0.2.0"
 description = "A tiny MCP server giving agents a persistent, full-text-searchable local notebook (SQLite + FTS5)."
 readme = "README.md"
 requires-python = ">=3.10"

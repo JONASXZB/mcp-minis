@@ -9,6 +9,7 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 | Tool | Parameters | Description |
 | --- | --- | --- |
 | `save_note` | `title` (str), `content` (str), `tags` (str, optional, comma-separated) | Save a note; returns its numeric ID. |
+| `update_note` | `note_id` (int), `title` / `content` / `tags` (all optional) | Update an existing note; only the fields you pass are changed. |
 | `search_notes` | `query` (str) | FTS5 full-text search over title, content, and tags, best matches first. |
 | `list_notes` | `tag` (str, optional) | List notes, most recently updated first, optionally filtered by tag. |
 | `get_note` | `note_id` (int) | One note with its full content. |

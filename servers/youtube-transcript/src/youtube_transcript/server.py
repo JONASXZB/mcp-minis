@@ -4,11 +4,16 @@ Fetch YouTube captions as timestamped text so an agent can read, summarize,
 or quote a video without watching it. No API key required — uses the
 ``youtube-transcript-api`` package.
 
+YouTube often blocks caption requests from datacenter IPs. If fetches fail
+with a block/429-style error, set ``YOUTUBE_TRANSCRIPT_PROXY`` (or the
+standard ``HTTPS_PROXY``) to route requests through a proxy.
+
 Run with: ``youtube-transcript`` (stdio transport).
 """
 
 from __future__ import annotations
 
+import os
 import re
 
 from mcp.server.fastmcp import FastMCP
@@ -18,6 +23,7 @@ from youtube_transcript_api._errors import (
     TranscriptsDisabled,
     VideoUnavailable,
 )
+from youtube_transcript_api.proxies import GenericProxyConfig
 
 mcp = FastMCP("youtube-transcript")
 
@@ -57,6 +63,25 @@ def _format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
+def _build_api() -> YouTubeTranscriptApi:
+    """Create the API client, honoring proxy environment variables.
+
+    ``YOUTUBE_TRANSCRIPT_PROXY`` takes precedence; otherwise the standard
+    ``HTTPS_PROXY`` / ``https_proxy`` variables are used. With no proxy
+    configured, requests go direct.
+    """
+    proxy = (
+        os.environ.get("YOUTUBE_TRANSCRIPT_PROXY")
+        or os.environ.get("HTTPS_PROXY")
+        or os.environ.get("https_proxy")
+    )
+    if proxy:
+        return YouTubeTranscriptApi(
+            proxy_config=GenericProxyConfig(http_url=proxy, https_url=proxy)
+        )
+    return YouTubeTranscriptApi()
+
+
 def _friendly_error(exc: Exception, video_id: str) -> str:
     """Translate youtube-transcript-api exceptions into readable messages."""
     if isinstance(exc, TranscriptsDisabled):
@@ -85,7 +110,7 @@ def get_transcript(video: str, languages: str = "en") -> str:
     if video_id is None:
         return f"Error: could not extract a video ID from '{video}'."
     lang_list = [lang.strip() for lang in languages.split(",") if lang.strip()] or ["en"]
-    api = YouTubeTranscriptApi()
+    api = _build_api()
     try:
         fetched = api.fetch(video_id, languages=lang_list)
     except Exception as exc:  # noqa: BLE001 - report, don't crash
@@ -115,7 +140,7 @@ def list_transcripts(video: str) -> str:
     video_id = extract_video_id(video)
     if video_id is None:
         return f"Error: could not extract a video ID from '{video}'."
-    api = YouTubeTranscriptApi()
+    api = _build_api()
     try:
         transcript_list = api.list(video_id)
         transcripts = list(transcript_list)

@@ -13,7 +13,25 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 
 Accepted URL forms: `youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`, `/embed/…`, `/live/…`, or a bare 11-character video ID.
 
-> **Note:** YouTube sometimes rate-limits or blocks caption requests from datacenter IP ranges. If a fetch fails with a block/429-style error, run the server from a residential connection.
+> **Note:** YouTube sometimes rate-limits or blocks caption requests from datacenter IP ranges. If a fetch fails with a block/429-style error, either run the server from a residential connection or route it through a proxy by setting the `YOUTUBE_TRANSCRIPT_PROXY` environment variable (the standard `HTTPS_PROXY` also works):
+
+```json
+{
+  "mcpServers": {
+    "youtube-transcript": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/JONASXZB/mcp-minis#subdirectory=servers/youtube-transcript",
+        "youtube-transcript"
+      ],
+      "env": {
+        "YOUTUBE_TRANSCRIPT_PROXY": "http://user:pass@host:port"
+      }
+    }
+  }
+}
+```
 
 ## Install
 

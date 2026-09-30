@@ -23,6 +23,15 @@ mcp = FastMCP("market-pulse")
 _STOOQ_URL = "https://stooq.com/q/l/"
 _FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest"
 _TIMEOUT_SECONDS = 20.0
+# Stooq's free CSV feed sometimes gates non-browser clients; a normal
+# browser User-Agent noticeably reduces false rejections.
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/126.0.0.0 Safari/537.36"
+    )
+}
 
 
 def _stooq_symbol(symbol: str) -> str:
@@ -64,7 +73,9 @@ def get_quote(symbol: str) -> str:
     stooq_symbol = _stooq_symbol(symbol)
     params = {"s": stooq_symbol, "f": "sd2t2ohlcv", "h": "", "e": "csv"}
     try:
-        with httpx.Client(timeout=_TIMEOUT_SECONDS, follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=_TIMEOUT_SECONDS, follow_redirects=True, headers=_BROWSER_HEADERS
+        ) as client:
             response = client.get(_STOOQ_URL, params=params)
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
