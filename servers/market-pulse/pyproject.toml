@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "market-pulse"
-version = "0.2.0"
+version = "0.3.0"
 description = "A tiny MCP server for stock/index/crypto quotes and currency conversion — free data, no API keys."
 readme = "README.md"
 requires-python = ">=3.10"
