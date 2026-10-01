@@ -9,7 +9,7 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 | Tool | Parameters | Description |
 | --- | --- | --- |
 | `search_papers` | `query` (str), `max_results` (int, default 5, max 25), `sort_by` (`relevance` \| `submitted_date` \| `last_updated`) | Search arXiv. Supports field prefixes (`ti:`, `au:`, `abs:`) and boolean operators. |
-| `get_paper` | `arxiv_id` (str) | Full metadata + abstract for one paper. Accepts `1706.03762`, `1706.03762v7`, or a full arXiv URL. |
+| `get_paper` | `arxiv_id` (str) | Full metadata + abstract for one paper. Accepts `1706.03762`, `1706.03762v7`, old-style IDs like `hep-th/9901001`, or a full arXiv URL. |
 | `export_bibtex` | `arxiv_ids` (list[str]) | BibTeX entries ready to paste into a `.bib` file. |
 
 ## Install

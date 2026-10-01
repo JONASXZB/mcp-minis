@@ -11,7 +11,7 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 | `fetch_markdown` | `url` (str), `max_chars` (int, default 20000) | Fetch a page and return its main content as Markdown (links and tables preserved), prefixed with the page title. |
 | `fetch_title_and_summary` | `url` (str) | Just the title, author/date when available, and a short summary — ideal for triaging a pile of links. |
 
-Content extraction is done by [trafilatura](https://github.com/adbar/trafilatura); fetching uses `httpx` with a normal browser User-Agent and a 10 MB download cap.
+Content extraction is done by [trafilatura](https://github.com/adbar/trafilatura); fetching uses `httpx` with a normal browser User-Agent and a 10 MB download cap. URLs that serve a non-HTML file (a PDF, an image, …) are rejected with an error naming the actual content type.
 
 ## Install
 

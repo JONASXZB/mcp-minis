@@ -96,3 +96,40 @@ def test_tools_report_oversized_page(monkeypatch):
     monkeypatch.setattr(server, "_fetch_html", too_big)
     assert "download limit" in server.fetch_markdown("https://example.com/big")
     assert "download limit" in server.fetch_title_and_summary("https://example.com/big")
+
+
+def test_fetch_html_rejects_pdf_content_type(monkeypatch):
+    def handler(request):
+        return httpx.Response(
+            200,
+            content=b"%PDF-1.4 fake",
+            headers={"Content-Type": "application/pdf"},
+        )
+
+    monkeypatch.setattr(
+        server.httpx, "Client", _client_factory(httpx.MockTransport(handler))
+    )
+    with pytest.raises(server._UnsupportedContentType) as excinfo:
+        server._fetch_html("https://example.com/paper.pdf")
+    assert excinfo.value.content_type == "application/pdf"
+
+
+def test_fetch_html_allows_missing_content_type(monkeypatch):
+    def handler(request):
+        return httpx.Response(200, content=SAMPLE_HTML.encode())
+
+    monkeypatch.setattr(
+        server.httpx, "Client", _client_factory(httpx.MockTransport(handler))
+    )
+    assert "Hello Reader" in server._fetch_html("https://example.com/page")
+
+
+def test_tools_report_unsupported_content_type(monkeypatch):
+    def wrong_type(url):
+        raise server._UnsupportedContentType(url, "application/pdf")
+
+    monkeypatch.setattr(server, "_fetch_html", wrong_type)
+    out = server.fetch_markdown("https://example.com/paper.pdf")
+    assert "application/pdf" in out and "not an HTML page" in out
+    out = server.fetch_title_and_summary("https://example.com/paper.pdf")
+    assert "application/pdf" in out and "not an HTML page" in out

@@ -31,6 +31,22 @@ class _PageTooLarge(Exception):
     """Raised when a page's body exceeds ``_MAX_RESPONSE_BYTES``."""
 
 
+class _UnsupportedContentType(Exception):
+    """Raised when a URL serves a non-HTML/XML media type (e.g. a PDF)."""
+
+    def __init__(self, url: str, content_type: str) -> None:
+        super().__init__(url)
+        self.content_type = content_type
+
+
+_HTML_MEDIA_TYPES = {"text/html", "application/xhtml+xml", "text/xml", "application/xml"}
+
+
+def _is_html_media_type(media_type: str) -> bool:
+    """True for media types that can carry a readable web page."""
+    return media_type in _HTML_MEDIA_TYPES or media_type.endswith("+xml")
+
+
 def _validate_url(url: str) -> str | None:
     """Return an error message if the URL is not a plausible http(s) URL."""
     parsed = urlparse(url.strip())
@@ -50,6 +66,9 @@ def _fetch_html(url: str) -> str:
     Raises:
         httpx.HTTPError: On network errors or non-2xx responses.
         _PageTooLarge: If the response body exceeds the size cap.
+        _UnsupportedContentType: If the response declares a media type
+            that is not HTML/XML (a PDF, an image, …), so the caller can
+            say so instead of reporting garbled content as unreadable.
     """
     headers = {"User-Agent": _USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
     chunks: list[bytes] = []
@@ -57,6 +76,11 @@ def _fetch_html(url: str) -> str:
     with httpx.Client(follow_redirects=True, timeout=_TIMEOUT_SECONDS) as client:
         with client.stream("GET", url, headers=headers) as response:
             response.raise_for_status()
+            media_type = (
+                response.headers.get("content-type", "").split(";")[0].strip().lower()
+            )
+            if media_type and not _is_html_media_type(media_type):
+                raise _UnsupportedContentType(url, media_type)
             for chunk in response.iter_bytes():
                 total += len(chunk)
                 if total > _MAX_RESPONSE_BYTES:
@@ -93,6 +117,8 @@ def fetch_markdown(url: str, max_chars: int = 20000) -> str:
             f"Error: the page at '{url}' exceeds the "
             f"{_MAX_RESPONSE_BYTES // (1024 * 1024)} MB download limit."
         )
+    except _UnsupportedContentType as exc:
+        return f"Error: '{url}' returned {exc.content_type}, not an HTML page."
     except httpx.HTTPStatusError as exc:
         return f"Error: fetching '{url}' returned HTTP {exc.response.status_code}."
     except (httpx.HTTPError, httpx.InvalidURL) as exc:
@@ -143,6 +169,8 @@ def fetch_title_and_summary(url: str) -> str:
             f"Error: the page at '{url}' exceeds the "
             f"{_MAX_RESPONSE_BYTES // (1024 * 1024)} MB download limit."
         )
+    except _UnsupportedContentType as exc:
+        return f"Error: '{url}' returned {exc.content_type}, not an HTML page."
     except httpx.HTTPStatusError as exc:
         return f"Error: fetching '{url}' returned HTTP {exc.response.status_code}."
     except (httpx.HTTPError, httpx.InvalidURL) as exc:

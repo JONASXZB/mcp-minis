@@ -2,6 +2,16 @@
 
 All notable changes to mcp-minis are documented here.
 
+## [0.6.0] — 2026-10-01
+
+### Fixed
+- **arxiv-scholar**: `get_paper` and `export_bibtex` no longer break old-style arXiv IDs (the pre-2007 `hep-th/9901001` format). A shared `_normalize_arxiv_id` helper now understands bare new-style and old-style IDs, `arxiv:` prefixes, version suffixes, and abs/pdf URLs — previously an old-style URL was truncated to `9901001` and the paper was never found. `export_bibtex` also strips version suffixes with a regex instead of `split("v")` when checking for missing IDs.
+- **web-to-markdown**: URLs that serve a non-HTML file (PDF, images, archives, …) are now rejected with an error naming the actual content type, instead of being decoded as garbled text and reported as "no readable content". HTML/XML pages are unaffected; responses with no declared content type are still processed as before.
+
+### Changed
+- arxiv-scholar and web-to-markdown bumped to 0.3.0; youtube-transcript remains at 0.3.0, memory-vault at 0.4.0, market-pulse at 0.3.0.
+- Synced the stale `__version__` strings in all five `__init__.py` files to match their pyproject versions (they were left at 0.1.0/0.2.0 by earlier releases).
+
 ## [0.5.0] — 2026-10-01
 
 ### Added

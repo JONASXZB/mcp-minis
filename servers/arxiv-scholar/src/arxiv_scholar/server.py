@@ -24,6 +24,34 @@ _SORT_ORDERS = {
 _client = arxiv.Client(page_size=25, delay_seconds=3.0, num_retries=3)
 
 
+def _normalize_arxiv_id(raw: str) -> str:
+    """Reduce the ways a caller can write an arXiv ID to the bare ID.
+
+    Accepts a bare new-style ID (``1706.03762``), a bare old-style ID
+    (``hep-th/9901001``, the pre-2007 format that keeps its archive name),
+    either with an ``arxiv:`` prefix, and abs/pdf URLs. Returns ``""``
+    when nothing ID-like remains.
+    """
+    text = raw.strip().removeprefix("arxiv:")
+    for marker in ("/abs/", "/pdf/"):
+        if marker in text:
+            text = text.split(marker, 1)[1]
+            break
+    else:
+        if "://" in text:
+            # Some other URL shape: fall back to the last path segment.
+            text = text.rstrip("/").split("/")[-1]
+    text = text.strip().rstrip("/")
+    if text.endswith(".pdf"):
+        text = text[: -len(".pdf")]
+    return text
+
+
+def _strip_version(arxiv_id: str) -> str:
+    """Drop a trailing version suffix (``v2``) from an arXiv ID."""
+    return re.sub(r"v\d+$", "", arxiv_id)
+
+
 def _format_paper(result: arxiv.Result) -> str:
     """Render one arXiv result as a compact, human-readable block."""
     authors = ", ".join(author.name for author in result.authors)
@@ -137,15 +165,14 @@ def get_paper(arxiv_id: str) -> str:
     """Fetch full metadata for a single arXiv paper by its ID.
 
     Args:
-        arxiv_id: The arXiv identifier, with or without version suffix,
-            e.g. ``1706.03762`` or ``1706.03762v7``. A full arXiv URL also works.
+        arxiv_id: The arXiv identifier, new-style (``1706.03762``) or
+            old-style (``hep-th/9901001``), with or without version suffix.
+            A full arXiv abs/pdf URL also works.
 
     Returns:
         The paper's metadata and abstract, or an error message.
     """
-    paper_id = arxiv_id.strip().rstrip("/").split("/")[-1]
-    # Strip a leading "arxiv:" scheme if the caller included one.
-    paper_id = paper_id.removeprefix("arxiv:")
+    paper_id = _normalize_arxiv_id(arxiv_id)
     if not paper_id:
         return "Error: arxiv_id must not be empty."
     try:
@@ -164,13 +191,16 @@ def export_bibtex(arxiv_ids: list[str]) -> str:
 
     Args:
         arxiv_ids: List of arXiv identifiers, e.g. ``["1706.03762", "2005.11401"]``.
+            Old-style IDs and arXiv URLs are accepted too.
 
     Returns:
         BibTeX entries ready to paste into a ``.bib`` file, or an error message.
     """
     if not arxiv_ids:
         return "Error: provide at least one arXiv ID."
-    cleaned = [aid.strip().split("/")[-1].removeprefix("arxiv:") for aid in arxiv_ids]
+    cleaned = [aid for aid in map(_normalize_arxiv_id, arxiv_ids) if aid]
+    if not cleaned:
+        return f"Error: none of the provided IDs resolved to a paper: {arxiv_ids}"
     try:
         search = arxiv.Search(id_list=cleaned)
         results = list(_client.results(search))
@@ -178,9 +208,9 @@ def export_bibtex(arxiv_ids: list[str]) -> str:
         return f"Error: failed to fetch papers: {exc}"
     if not results:
         return f"Error: none of the provided IDs resolved to a paper: {arxiv_ids}"
-    found_ids = {r.get_short_id().split("v")[0] for r in results}
+    found_ids = {_strip_version(r.get_short_id()) for r in results}
     entries = "\n\n".join(_to_bibtex(r) for r in results)
-    missing = [aid for aid in cleaned if aid.split("v")[0] not in found_ids]
+    missing = [aid for aid in cleaned if _strip_version(aid) not in found_ids]
     if missing:
         entries += f"\n\n% Warning: no paper found for: {', '.join(missing)}"
     return entries
