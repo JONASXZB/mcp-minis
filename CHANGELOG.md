@@ -36,4 +36,4 @@ All notable changes to mcp-minis are documented here.
 
 ## [0.1.0] — 2026-10-01
 
-Initial release: five single-purpose MCP servers — arxiv-scholar, youtube-transcript, web-to-markdown, market-pulse, memory-vault — 15 tools total, no API keys, MIT license.
+Initial release: five single-purpose MCP servers — arxiv-scholar, youtube-transcript, web-to-markdown, market-pulse, memory-vault — 16 tools total, no API keys, MIT license.
