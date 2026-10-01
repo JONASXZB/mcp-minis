@@ -180,12 +180,15 @@ def update_note(
 
 
 @mcp.tool()
-def search_notes(query: str) -> str:
+def search_notes(query: str, limit: int = 20) -> str:
     """Full-text search the vault (title, content, and tags).
 
     Args:
         query: Words to search for. Notes containing all words rank first
             (FTS5 relevance order).
+        limit: Maximum number of notes to return (1-100, default 20).
+            The result always reports the total number of matches, so a
+            truncated list is never mistaken for the whole vault.
 
     Returns:
         Matching notes with previews, best matches first — or a message
@@ -193,52 +196,79 @@ def search_notes(query: str) -> str:
     """
     if not query.strip():
         return "Error: query must not be empty."
+    limit = max(1, min(limit, 100))
     fts = _fts_query(query)
     try:
         with _connect() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) FROM notes_fts WHERE notes_fts MATCH ?",
+                (fts,),
+            ).fetchone()[0]
             rows = conn.execute(
                 "SELECT n.* FROM notes n "
                 "JOIN notes_fts f ON f.rowid = n.id "
-                "WHERE notes_fts MATCH ? ORDER BY rank",
-                (fts,),
+                "WHERE notes_fts MATCH ? ORDER BY rank LIMIT ?",
+                (fts, limit),
             ).fetchall()
     except sqlite3.Error as exc:
         return f"Error: search failed: {exc}"
     if not rows:
         return f"No notes match '{query}'."
-    header = f"Found {len(rows)} note(s) matching '{query}':\n"
-    return header + "\n\n".join(_format_note(r) for r in rows)
+    header = f"Found {total} note(s) matching '{query}'"
+    if total > len(rows):
+        header += f" (showing first {len(rows)})"
+    header += ":\n"
+    result = header + "\n\n".join(_format_note(r) for r in rows)
+    if total > len(rows):
+        result += "\n\nMore matches exist — narrow the query or raise limit (max 100)."
+    return result
 
 
 @mcp.tool()
-def list_notes(tag: str = "") -> str:
+def list_notes(tag: str = "", limit: int = 20) -> str:
     """List notes in the vault, most recently updated first.
 
     Args:
         tag: Optional — only list notes carrying this tag.
+        limit: Maximum number of notes to return (1-100, default 20).
+            The result always reports the total number of matching notes,
+            so a truncated list is never mistaken for the whole vault.
 
     Returns:
         A list of notes with previews, or a message if the vault is empty.
     """
+    limit = max(1, min(limit, 100))
     try:
         with _connect() as conn:
             if tag.strip():
+                total = conn.execute(
+                    "SELECT COUNT(*) FROM notes WHERE ',' || REPLACE(tags, ', ', ',') "
+                    "|| ',' LIKE '%,' || ? || ',%'",
+                    (tag.strip(),),
+                ).fetchone()[0]
                 rows = conn.execute(
                     "SELECT * FROM notes WHERE ',' || REPLACE(tags, ', ', ',') || ',' "
-                    "LIKE '%,' || ? || ',%' ORDER BY updated_at DESC",
-                    (tag.strip(),),
+                    "LIKE '%,' || ? || ',%' ORDER BY updated_at DESC LIMIT ?",
+                    (tag.strip(), limit),
                 ).fetchall()
             else:
+                total = conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
                 rows = conn.execute(
-                    "SELECT * FROM notes ORDER BY updated_at DESC"
+                    "SELECT * FROM notes ORDER BY updated_at DESC LIMIT ?", (limit,)
                 ).fetchall()
     except sqlite3.Error as exc:
         return f"Error: failed to list notes: {exc}"
     if not rows:
         suffix = f" with tag '{tag.strip()}'" if tag.strip() else ""
         return f"No notes in the vault{suffix}."
-    header = f"{len(rows)} note(s) in the vault:\n"
-    return header + "\n\n".join(_format_note(r) for r in rows)
+    header = f"{total} note(s) in the vault"
+    if total > len(rows):
+        header += f" (showing first {len(rows)})"
+    header += ":\n"
+    result = header + "\n\n".join(_format_note(r) for r in rows)
+    if total > len(rows):
+        result += "\n\nMore notes exist — filter by tag or raise limit (max 100)."
+    return result
 
 
 @mcp.tool()

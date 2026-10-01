@@ -1,6 +1,7 @@
 """Smoke tests for web-to-markdown (no network access required)."""
 
 import httpx
+import pytest
 
 from web_to_markdown import server
 
@@ -49,3 +50,49 @@ def test_fetch_markdown_http_error(monkeypatch):
 
     monkeypatch.setattr(server, "_fetch_html", boom)
     assert "HTTP 404" in server.fetch_markdown("https://example.com/missing")
+
+
+def _client_factory(transport):
+    real_client = httpx.Client
+
+    def factory(**kwargs):
+        return real_client(transport=transport, **kwargs)
+
+    return factory
+
+
+def test_fetch_html_streams_normal_page(monkeypatch):
+    def handler(request):
+        return httpx.Response(
+            200,
+            content=SAMPLE_HTML.encode(),
+            headers={"Content-Type": "text/html; charset=utf-8"},
+        )
+
+    monkeypatch.setattr(
+        server.httpx, "Client", _client_factory(httpx.MockTransport(handler))
+    )
+    html = server._fetch_html("https://example.com/page")
+    assert "Hello Reader" in html
+
+
+def test_fetch_html_rejects_oversized_page(monkeypatch):
+    monkeypatch.setattr(server, "_MAX_RESPONSE_BYTES", 1024)
+
+    def handler(request):
+        return httpx.Response(200, content=b"x" * 5000)
+
+    monkeypatch.setattr(
+        server.httpx, "Client", _client_factory(httpx.MockTransport(handler))
+    )
+    with pytest.raises(server._PageTooLarge):
+        server._fetch_html("https://example.com/big")
+
+
+def test_tools_report_oversized_page(monkeypatch):
+    def too_big(url):
+        raise server._PageTooLarge(url)
+
+    monkeypatch.setattr(server, "_fetch_html", too_big)
+    assert "download limit" in server.fetch_markdown("https://example.com/big")
+    assert "download limit" in server.fetch_title_and_summary("https://example.com/big")

@@ -10,8 +10,8 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 | --- | --- | --- |
 | `save_note` | `title` (str), `content` (str), `tags` (str, optional, comma-separated) | Save a note; returns its numeric ID. |
 | `update_note` | `note_id` (int), `title` / `content` / `tags` (all optional) | Update an existing note; only the fields you pass are changed. Pass `tags=""` to clear all tags or `content=""` to empty the body. |
-| `search_notes` | `query` (str) | FTS5 full-text search over title, content, and tags, best matches first. |
-| `list_notes` | `tag` (str, optional) | List notes, most recently updated first, optionally filtered by tag. |
+| `search_notes` | `query` (str), `limit` (int, optional, default 20) | FTS5 full-text search over title, content, and tags, best matches first. Reports the total match count when results are truncated by `limit`. |
+| `list_notes` | `tag` (str, optional), `limit` (int, optional, default 20) | List notes, most recently updated first, optionally filtered by tag. Reports the total count when results are truncated by `limit`. |
 | `get_note` | `note_id` (int) | One note with its full content. |
 | `delete_note` | `note_id` (int) | Permanently delete a note. |
 

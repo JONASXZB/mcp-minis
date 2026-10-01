@@ -24,6 +24,11 @@ _USER_AGENT = (
     "Chrome/126.0.0.0 Safari/537.36"
 )
 _TIMEOUT_SECONDS = 30.0
+_MAX_RESPONSE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+class _PageTooLarge(Exception):
+    """Raised when a page's body exceeds ``_MAX_RESPONSE_BYTES``."""
 
 
 def _validate_url(url: str) -> str | None:
@@ -39,14 +44,26 @@ def _validate_url(url: str) -> str | None:
 def _fetch_html(url: str) -> str:
     """Download a page's HTML with a browser-like User-Agent.
 
+    The body is streamed in chunks and capped at ``_MAX_RESPONSE_BYTES``
+    so an oversized page cannot be loaded into memory whole.
+
     Raises:
         httpx.HTTPError: On network errors or non-2xx responses.
+        _PageTooLarge: If the response body exceeds the size cap.
     """
     headers = {"User-Agent": _USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
+    chunks: list[bytes] = []
+    total = 0
     with httpx.Client(follow_redirects=True, timeout=_TIMEOUT_SECONDS) as client:
-        response = client.get(url, headers=headers)
-        response.raise_for_status()
-        return response.text
+        with client.stream("GET", url, headers=headers) as response:
+            response.raise_for_status()
+            for chunk in response.iter_bytes():
+                total += len(chunk)
+                if total > _MAX_RESPONSE_BYTES:
+                    raise _PageTooLarge(url)
+                chunks.append(chunk)
+            encoding = response.encoding or "utf-8"
+    return b"".join(chunks).decode(encoding, errors="replace")
 
 
 @mcp.tool()
@@ -71,6 +88,11 @@ def fetch_markdown(url: str, max_chars: int = 20000) -> str:
         return "Error: max_chars must be at least 1."
     try:
         html = _fetch_html(url)
+    except _PageTooLarge:
+        return (
+            f"Error: the page at '{url}' exceeds the "
+            f"{_MAX_RESPONSE_BYTES // (1024 * 1024)} MB download limit."
+        )
     except httpx.HTTPStatusError as exc:
         return f"Error: fetching '{url}' returned HTTP {exc.response.status_code}."
     except (httpx.HTTPError, httpx.InvalidURL) as exc:
@@ -116,6 +138,11 @@ def fetch_title_and_summary(url: str) -> str:
         return error
     try:
         html = _fetch_html(url)
+    except _PageTooLarge:
+        return (
+            f"Error: the page at '{url}' exceeds the "
+            f"{_MAX_RESPONSE_BYTES // (1024 * 1024)} MB download limit."
+        )
     except httpx.HTTPStatusError as exc:
         return f"Error: fetching '{url}' returned HTTP {exc.response.status_code}."
     except (httpx.HTTPError, httpx.InvalidURL) as exc:

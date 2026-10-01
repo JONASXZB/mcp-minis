@@ -98,3 +98,36 @@ def test_search_is_safe_against_fts_syntax():
     # Raw FTS operators in the query must not crash the search.
     result = server.search_notes('* OR "unbalanced')
     assert isinstance(result, str)
+
+
+def test_search_and_list_respect_limit_and_report_total():
+    for i in range(25):
+        server.save_note(f"Alpha note {i}", "common keyword body", "bulk")
+    # Default limit is 20: exactly 20 notes are shown, the total is honest.
+    out = server.search_notes("keyword")
+    assert out.startswith("Found 25 note(s) matching 'keyword' (showing first 20):")
+    assert out.count("Alpha note") == 20
+    assert "More matches exist" in out
+    # An explicit limit is honored.
+    out = server.search_notes("keyword", limit=5)
+    assert "(showing first 5)" in out
+    assert out.count("Alpha note") == 5
+    # Limits above the cap clamp to 100 — here all 25 fit, so no truncation.
+    out = server.search_notes("keyword", limit=500)
+    assert out.startswith("Found 25 note(s) matching 'keyword':")
+    assert "More matches exist" not in out
+    # list_notes behaves the same, with and without a tag filter.
+    out = server.list_notes()
+    assert out.startswith("25 note(s) in the vault (showing first 20):")
+    assert out.count("Alpha note") == 20
+    out = server.list_notes(tag="bulk", limit=3)
+    assert out.startswith("25 note(s) in the vault (showing first 3):")
+    assert out.count("Alpha note") == 3
+
+
+def test_small_vault_output_is_unchanged():
+    server.save_note("Only note", "a quiet body")
+    out = server.search_notes("quiet")
+    assert out.startswith("Found 1 note(s) matching 'quiet':")
+    out = server.list_notes()
+    assert out.startswith("1 note(s) in the vault:")

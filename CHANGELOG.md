@@ -2,6 +2,18 @@
 
 All notable changes to mcp-minis are documented here.
 
+## [0.4.0] — 2026-10-01
+
+### Changed
+- **memory-vault**: `search_notes` and `list_notes` now take a `limit` parameter (default 20, max 100) and always report the total number of matches, so a large vault can no longer flood the calling agent's context with unbounded results — and a truncated list is never mistaken for the whole vault.
+
+### Fixed
+- **arxiv-scholar**: `export_bibtex` now escapes LaTeX special characters (`&`, `%`, `_`, `#`, `$`, braces, `~`, `^`, `\`) in titles and author names, so papers whose titles contain them no longer produce broken `.bib` entries. URLs and arXiv IDs are left untouched.
+- **web-to-markdown**: page downloads are now streamed with a 10 MB size cap instead of being loaded into memory whole; oversized pages return a clear error.
+
+### Changed
+- memory-vault bumped to 0.4.0; arxiv-scholar and web-to-markdown bumped to 0.2.0; youtube-transcript remains at 0.2.0, market-pulse at 0.3.0.
+
 ## [0.3.0] — 2026-10-01
 
 ### Fixed

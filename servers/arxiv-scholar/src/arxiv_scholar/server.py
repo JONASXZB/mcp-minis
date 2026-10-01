@@ -53,14 +53,38 @@ def _bibtex_key(result: arxiv.Result) -> str:
     return f"{first_author.lower()}{year}{first_word}"
 
 
+_LATEX_SPECIALS = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "{": r"\{",
+    "}": r"\}",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+}
+
+
+def _latex_escape(text: str) -> str:
+    """Escape LaTeX special characters so a BibTeX field stays valid.
+
+    Applied to free-text fields (title, authors) only — URLs and arXiv IDs
+    must pass through untouched, since escaping their ``_``/``~`` would
+    break them.
+    """
+    return "".join(_LATEX_SPECIALS.get(char, char) for char in text)
+
+
 def _to_bibtex(result: arxiv.Result) -> str:
     """Convert one arXiv result to a BibTeX ``@misc`` entry."""
-    authors = " and ".join(author.name for author in result.authors)
+    authors = " and ".join(_latex_escape(author.name) for author in result.authors)
     year = result.published.year if result.published else ""
     eprint = re.sub(r"v\d+$", "", result.get_short_id())
     return (
         f"@misc{{{_bibtex_key(result)},\n"
-        f"  title = {{{result.title}}},\n"
+        f"  title = {{{_latex_escape(result.title)}}},\n"
         f"  author = {{{authors}}},\n"
         f"  year = {{{year}}},\n"
         f"  eprint = {{{eprint}}},\n"
