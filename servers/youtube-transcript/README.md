@@ -8,7 +8,7 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 
 | Tool | Parameters | Description |
 | --- | --- | --- |
-| `get_transcript` | `video` (str — URL or bare video ID), `languages` (str, default `"en"`, comma-separated preference list) | The full transcript with `[HH:MM:SS]` timestamps. |
+| `get_transcript` | `video` (str — URL or bare video ID), `languages` (str, default `"en"`, comma-separated preference list), `start_line` (int, default `0`), `max_lines` (int, default `0` = all) | The transcript with `[HH:MM:SS]` timestamps. Page through long videos with `start_line` / `max_lines`; the header reports the shown range and the total line count. |
 | `list_transcripts` | `video` (str — URL or bare video ID) | All available caption tracks: language, manual vs. auto-generated, translatable or not. |
 
 Accepted URL forms: `youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`, `/embed/…`, `/live/…`, or a bare 11-character video ID.

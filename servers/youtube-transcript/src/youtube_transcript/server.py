@@ -20,6 +20,7 @@ from mcp.server.fastmcp import FastMCP
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     NoTranscriptFound,
+    RequestBlocked,
     TranscriptsDisabled,
     VideoUnavailable,
 )
@@ -90,21 +91,41 @@ def _friendly_error(exc: Exception, video_id: str) -> str:
         return f"Error: no transcript found for video '{video_id}' in the requested languages."
     if isinstance(exc, VideoUnavailable):
         return f"Error: video '{video_id}' is unavailable (private, deleted, or region-locked)."
+    if isinstance(exc, RequestBlocked):
+        # IpBlocked is a subclass of RequestBlocked, so this covers both.
+        return (
+            f"Error: YouTube is blocking transcript requests from this IP "
+            f"(video '{video_id}'). This is common on datacenter IPs — set "
+            f"the YOUTUBE_TRANSCRIPT_PROXY environment variable to route "
+            f"requests through a proxy."
+        )
     return f"Error: failed to fetch transcript for '{video_id}': {exc}"
 
 
 @mcp.tool()
-def get_transcript(video: str, languages: str = "en") -> str:
+def get_transcript(
+    video: str,
+    languages: str = "en",
+    start_line: int = 0,
+    max_lines: int = 0,
+) -> str:
     """Get the transcript of a YouTube video as timestamped text.
 
     Args:
         video: A YouTube URL (any common form) or a bare 11-character video ID.
         languages: Comma-separated language codes in order of preference,
             e.g. ``"en"`` or ``"de,en"``. The first available one is used.
+        start_line: 0-based index of the first caption line to return
+            (default 0 — from the beginning).
+        max_lines: Maximum number of caption lines to return (default 0 —
+            return all lines). Long videos can have over a thousand caption
+            lines; page through them with ``start_line`` / ``max_lines``
+            instead of flooding the context in a single call.
 
     Returns:
         The transcript with ``[HH:MM:SS]`` timestamps, one caption line per
-        line of text — or an error message if no transcript is available.
+        line of text. The header reports which lines are shown out of the
+        total — or an error message if no transcript is available.
     """
     video_id = extract_video_id(video)
     if video_id is None:
@@ -122,8 +143,22 @@ def get_transcript(video: str, languages: str = "en") -> str:
     ]
     if not lines:
         return f"Error: transcript for '{video_id}' was empty."
-    header = f"Transcript of {video_id} ({fetched.language}, {len(lines)} lines):\n"
-    return header + "\n".join(lines)
+    total = len(lines)
+    start = max(0, start_line)
+    if start >= total:
+        return (
+            f"Error: start_line {start_line} is out of range — the transcript "
+            f"of '{video_id}' has {total} lines (0-{total - 1})."
+        )
+    page = lines[start : start + max_lines] if max_lines > 0 else lines[start:]
+    if len(page) == total:
+        header = f"Transcript of {video_id} ({fetched.language}, {total} lines):\n"
+    else:
+        header = (
+            f"Transcript of {video_id} ({fetched.language}, "
+            f"lines {start + 1}-{start + len(page)} of {total}):\n"
+        )
+    return header + "\n".join(page)
 
 
 @mcp.tool()

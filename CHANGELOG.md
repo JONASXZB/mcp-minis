@@ -2,6 +2,17 @@
 
 All notable changes to mcp-minis are documented here.
 
+## [0.5.0] — 2026-10-01
+
+### Added
+- **youtube-transcript**: `get_transcript` now takes `start_line` and `max_lines` parameters, so a long video's captions can be paged through instead of flooding the calling agent's context in a single call. When paging, the header reports the shown range and the total line count; the default (no paging arguments) still returns the full transcript.
+
+### Fixed
+- **youtube-transcript**: when YouTube blocks transcript requests from the current IP (`RequestBlocked` / `IpBlocked`), the error now says so explicitly and points at the `YOUTUBE_TRANSCRIPT_PROXY` workaround, instead of surfacing the library's raw exception text.
+
+### Changed
+- youtube-transcript bumped to 0.3.0; memory-vault remains at 0.4.0, market-pulse at 0.3.0, arxiv-scholar and web-to-markdown at 0.2.0.
+
 ## [0.4.0] — 2026-10-01
 
 ### Changed

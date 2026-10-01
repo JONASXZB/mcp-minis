@@ -46,3 +46,57 @@ def test_no_proxy_by_default(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     api = server._build_api()
     assert api._fetcher._proxy_config is None
+
+
+class _FakeApi:
+    """Stand-in for YouTubeTranscriptApi returning canned snippets."""
+
+    def __init__(self, snippets):
+        self._snippets = snippets
+
+    def fetch(self, video_id, languages=None):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            snippets=self._snippets, language="English", language_code="en"
+        )
+
+
+def _install_fake_api(monkeypatch, n=5):
+    from types import SimpleNamespace
+
+    snippets = [
+        SimpleNamespace(start=float(i * 10), text=f"line {i}") for i in range(n)
+    ]
+    monkeypatch.setattr(server, "_build_api", lambda: _FakeApi(snippets))
+
+
+def test_get_transcript_full_by_default(monkeypatch):
+    _install_fake_api(monkeypatch)
+    out = server.get_transcript("dQw4w9WgXcQ")
+    assert "(English, 5 lines)" in out
+    assert "line 0" in out and "line 4" in out
+
+
+def test_get_transcript_paging(monkeypatch):
+    _install_fake_api(monkeypatch)
+    out = server.get_transcript("dQw4w9WgXcQ", start_line=1, max_lines=2)
+    assert "lines 2-3 of 5" in out
+    assert "line 1" in out and "line 2" in out
+    assert "line 0" not in out and "line 3" not in out
+
+
+def test_get_transcript_start_beyond_end(monkeypatch):
+    _install_fake_api(monkeypatch)
+    out = server.get_transcript("dQw4w9WgXcQ", start_line=99)
+    assert out.startswith("Error")
+    assert "5 lines" in out
+
+
+def test_blocked_ip_error_mentions_proxy():
+    from youtube_transcript_api._errors import IpBlocked, RequestBlocked
+
+    for exc in (RequestBlocked("dQw4w9WgXcQ"), IpBlocked("dQw4w9WgXcQ")):
+        msg = server._friendly_error(exc, "dQw4w9WgXcQ")
+        assert msg.startswith("Error")
+        assert "YOUTUBE_TRANSCRIPT_PROXY" in msg
