@@ -1,1 +1,13 @@
-IyBHbGFtYSB2ZXJpZmljYXRpb24gaW1hZ2UgZm9yIG1jcC1taW5pcy4KIyBHbGFtYSBidWlsZHMgd2l0aCB0aGUgcmVwb3NpdG9yeSByb290IGFzIGNvbnRleHQuIFRoaXMgaW1hZ2UgcGFja2FnZXMgdGhlCiMgbWVtb3J5LXZhdWx0IHNlcnZlciAocHVyZSBzdGRpbyArIFNRTGl0ZSwgbm8gbmV0d29yayBuZWVkZWQgYXQgcnVudGltZSksCiMgd2hpY2ggc3RhcnRzIGFuZCBhbnN3ZXJzIE1DUCBpbnRyb3NwZWN0aW9uIChpbml0aWFsaXplIC8gdG9vbHMvbGlzdCkuCkZST00gcHl0aG9uOjMuMTItc2xpbQoKV09SS0RJUiAvYXBwCgpDT1BZIHNlcnZlcnMvbWVtb3J5LXZhdWx0LyAuLwoKUlVOIHBpcCBpbnN0YWxsIC0tbm8tY2FjaGUtZGlyIC4KCkNNRCBbIm1lbW9yeS12YXVsdCJdCg==
+# Glama verification image for mcp-minis.
+# Glama builds with the repository root as context. This image packages the
+# memory-vault server (pure stdio + SQLite, no network needed at runtime),
+# which starts and answers MCP introspection (initialize / tools/list).
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY servers/memory-vault/ ./
+
+RUN pip install --no-cache-dir .
+
+CMD ["memory-vault"]
