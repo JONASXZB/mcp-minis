@@ -47,6 +47,19 @@ pip install -e ".[dev]"
 pytest
 ```
 
+To work on all five servers in one environment, run these commands from the repository root:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e 'servers/arxiv-scholar[dev]' \
+  -e 'servers/youtube-transcript[dev]' -e 'servers/web-to-markdown[dev]' \
+  -e 'servers/market-pulse[dev]' -e 'servers/memory-vault[dev]'
+python -m pytest --import-mode=importlib servers
+```
+
+Importlib mode lets pytest collect the servers' identically named `test_smoke.py` files together. These tests use temporary databases and mocked network responses; no API keys or live data sources are needed.
+
 ## Style
 
 - Python ≥ 3.10, `from __future__ import annotations` where generics need it.

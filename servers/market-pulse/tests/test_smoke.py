@@ -1,5 +1,7 @@
 """Smoke tests for market-pulse (no network access required)."""
 
+import pytest
+
 from market_pulse import server
 
 
@@ -93,3 +95,51 @@ def test_get_quote_parses_stooq_csv(monkeypatch):
     assert "Close: 272.97" in out
     assert "+1.77 (+0.65%)" in out
     assert "49,213,432" in out
+
+
+@pytest.mark.parametrize("code", ["123", "U$D", "ÉUR"])
+def test_currency_codes_must_be_ascii_letters(monkeypatch, code):
+    monkeypatch.setattr(server, "_fetch_fx", _fail_fetch)
+    assert server.get_fx_rate(code, code).startswith("Error:")
+    assert server.convert_currency(0, code, "USD").startswith("Error:")
+
+
+@pytest.mark.parametrize("amount", [float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize("target", ["USD", "CNY"])
+def test_conversion_rejects_nonfinite_amounts_before_fetch(monkeypatch, amount, target):
+    monkeypatch.setattr(server, "_fetch_fx", _fail_fetch)
+    assert server.convert_currency(amount, "USD", target).startswith("Error:")
+
+
+@pytest.mark.parametrize("value", [None, "unavailable", float("nan"), float("inf"), True])
+def test_fx_tools_report_malformed_rate_payloads(monkeypatch, value):
+    monkeypatch.setattr(server, "_fetch_fx", lambda *args: {"rates": {"CNY": value}})
+    assert server.get_fx_rate("USD", "CNY").startswith("Error:")
+    assert server.convert_currency(10, "USD", "CNY").startswith("Error:")
+
+
+@pytest.mark.parametrize("volume", ["unavailable", "nan", "inf", "-10"])
+def test_quote_keeps_prices_when_volume_is_unavailable(monkeypatch, volume):
+    monkeypatch.setattr(_FakeResponse, "text", SAMPLE_CSV.replace("49213432", volume))
+    monkeypatch.setattr(server.httpx, "Client", _FakeClient)
+    out = server.get_quote("AAPL")
+    assert "Close: 272.97" in out
+    assert "Volume: n/a" in out
+
+
+@pytest.mark.parametrize("price", ["nan", "inf", "-inf"])
+def test_quote_rejects_nonfinite_prices(monkeypatch, price):
+    monkeypatch.setattr(_FakeResponse, "text", SAMPLE_CSV.replace("272.97", price))
+    monkeypatch.setattr(server.httpx, "Client", _FakeClient)
+    assert server.get_quote("AAPL").startswith("Error:")
+
+
+def test_get_fx_rate_formats_reference_rate(monkeypatch):
+    def fake_fetch(amount, base, target):
+        assert (amount, base, target) == (1.0, "USD", "CNY")
+        return {"rates": {"CNY": 7.2}, "date": "2026-10-21"}
+
+    monkeypatch.setattr(server, "_fetch_fx", fake_fetch)
+    result = server.get_fx_rate(" usd ", "cny")
+    assert "1 USD = 7.2000 CNY" in result
+    assert "Reference date: 2026-10-21" in result

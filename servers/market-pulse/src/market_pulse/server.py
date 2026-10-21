@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import csv
 import io
+import math
+import re
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -23,6 +25,7 @@ mcp = FastMCP("market-pulse")
 _STOOQ_URL = "https://stooq.com/q/l/"
 _FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest"
 _TIMEOUT_SECONDS = 20.0
+_CURRENCY_CODE_RE = re.compile(r"[A-Z]{3}")
 # Stooq's free CSV feed sometimes gates non-browser clients; a normal
 # browser User-Agent noticeably reduces false rejections.
 _BROWSER_HEADERS = {
@@ -50,6 +53,16 @@ def _stooq_symbol(symbol: str) -> str:
     if cleaned.endswith("usd") and len(cleaned) > 3:
         return cleaned
     return f"{cleaned}.us"
+
+
+def _finite_number(value: object) -> float:
+    """Parse a feed value without accepting booleans, NaN, or infinity."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("expected a finite number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("expected a finite number")
+    return number
 
 
 @mcp.tool()
@@ -94,10 +107,10 @@ def get_quote(symbol: str) -> str:
         )
     row = rows[0]
     try:
-        open_ = float(row["Open"])
-        close = float(row["Close"])
-        high = float(row["High"])
-        low = float(row["Low"])
+        open_ = _finite_number(row["Open"])
+        close = _finite_number(row["Close"])
+        high = _finite_number(row["High"])
+        low = _finite_number(row["Low"])
     except (KeyError, TypeError, ValueError):
         return f"Error: could not parse quote data for '{symbol}': {row}"
     change = close - open_
@@ -112,7 +125,13 @@ def get_quote(symbol: str) -> str:
     ]
     volume = row.get("Volume")
     if volume and volume != "N/D":
-        lines.append(f"Volume: {int(float(volume)):,}")
+        try:
+            parsed_volume = _finite_number(volume)
+            if parsed_volume < 0:
+                raise ValueError("volume must not be negative")
+            lines.append(f"Volume: {int(parsed_volume):,}")
+        except (ValueError, OverflowError):
+            lines.append("Volume: n/a (unavailable)")
     lines.append("Note: end-of-day data from Stooq, not a real-time feed.")
     return "\n".join(lines)
 
@@ -141,19 +160,21 @@ def get_fx_rate(base: str, target: str) -> str:
         date — or an error message for unknown currency codes.
     """
     base, target = base.strip().upper(), target.strip().upper()
-    if len(base) != 3 or len(target) != 3:
+    if not _CURRENCY_CODE_RE.fullmatch(base) or not _CURRENCY_CODE_RE.fullmatch(target):
         return "Error: currency codes must be 3 letters, e.g. USD, EUR, CNY."
     if base == target:
         return f"1 {base} = 1.0000 {target} (same currency)"
     try:
         data = _fetch_fx(1.0, base, target)
-        rate = data["rates"][target]
+        rate = _finite_number(data["rates"][target])
     except httpx.HTTPStatusError as exc:
         return (
             f"Error: Frankfurter API returned HTTP {exc.response.status_code}. "
             f"'{base}' or '{target}' may not be a supported currency code."
         )
-    except (httpx.HTTPError, httpx.InvalidURL, KeyError, TypeError, ValueError) as exc:
+    except (
+        httpx.HTTPError, httpx.InvalidURL, KeyError, TypeError, ValueError, OverflowError
+    ) as exc:
         return f"Error: failed to fetch FX rate {base}->{target}: {exc}"
     return (
         f"1 {base} = {rate:.4f} {target}\n"
@@ -178,8 +199,10 @@ def convert_currency(amount: float, base: str, target: str) -> str:
         The converted amount and the rate used — or an error message.
     """
     base, target = base.strip().upper(), target.strip().upper()
-    if len(base) != 3 or len(target) != 3:
+    if not _CURRENCY_CODE_RE.fullmatch(base) or not _CURRENCY_CODE_RE.fullmatch(target):
         return "Error: currency codes must be 3 letters, e.g. USD, EUR, CNY."
+    if not math.isfinite(amount):
+        return "Error: amount must be a finite number."
     if base == target:
         return (
             f"{amount:,.2f} {base} = {amount:,.2f} {target}\n"
@@ -192,15 +215,17 @@ def convert_currency(amount: float, base: str, target: str) -> str:
         )
     try:
         data = _fetch_fx(amount, base, target)
-        converted = data["rates"][target]
+        converted = _finite_number(data["rates"][target])
+        rate = _finite_number(converted / amount)
     except httpx.HTTPStatusError as exc:
         return (
             f"Error: Frankfurter API returned HTTP {exc.response.status_code}. "
             f"'{base}' or '{target}' may not be a supported currency code."
         )
-    except (httpx.HTTPError, httpx.InvalidURL, KeyError, TypeError, ValueError) as exc:
+    except (
+        httpx.HTTPError, httpx.InvalidURL, KeyError, TypeError, ValueError, OverflowError
+    ) as exc:
         return f"Error: failed to convert {base}->{target}: {exc}"
-    rate = converted / amount
     return (
         f"{amount:,.2f} {base} = {converted:,.2f} {target}\n"
         f"Rate: 1 {base} = {rate:.4f} {target} "

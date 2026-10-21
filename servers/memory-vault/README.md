@@ -15,6 +15,8 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 | `get_note` | `note_id` (int) | One note with its full content. |
 | `delete_note` | `note_id` (int) | Permanently delete a note. |
 
+Tag filters match a whole tag, ignoring ASCII case. Characters such as `%` and `_` are literal, not search wildcards. When notes share an update timestamp, `list_notes` shows the newest note ID first.
+
 ## Where the data lives
 
 By default the vault is a single SQLite file at `~/.memory-vault.db`. Point the server somewhere else with the `MEMORY_VAULT_DB` environment variable:

@@ -8,11 +8,13 @@ Part of [mcp-minis](../../README.md), a collection of small, single-purpose MCP 
 
 | Tool | Parameters | Description |
 | --- | --- | --- |
-| `get_quote` | `symbol` (str) | Latest end-of-day quote: close, open/high/low, daily change, volume. Data: [Stooq](https://stooq.com). |
+| `get_quote` | `symbol` (str) | Latest end-of-day quote: close, open/high/low, change versus open, volume when available. Data: [Stooq](https://stooq.com). |
 | `get_fx_rate` | `base` (str), `target` (str) | Exchange rate between two currencies (ECB reference rates). Data: [Frankfurter](https://www.frankfurter.app). |
 | `convert_currency` | `amount` (float), `base` (str), `target` (str) | Convert an amount and show the rate used. |
 
 Symbol examples: `AAPL`, `MSFT`, `^SPX` (S&P 500), `^DJI`, `BTCUSD`, `ETHUSD`, or full Stooq symbols such as `7203.JP` (Toyota).
+
+Currency codes must be three ASCII letters (case-insensitive), and conversion amounts must be finite numbers. Invalid feed values return an error; an unavailable volume field is reported as `n/a` while valid prices are preserved.
 
 > **Data caveats:** Stooq quotes are end-of-day, not a real-time tick feed. Frankfurter rates are ECB daily reference rates, published on business days. Great for briefings and sanity checks — not for trading.
 

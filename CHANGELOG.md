@@ -2,6 +2,16 @@
 
 All notable changes to mcp-minis are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **memory-vault**: SQLite connections now close after each operation, including schema and transaction failures. Invalid database directory paths return readable errors. Tag filters match `%` and `_` literally while retaining case-insensitive whole-tag matching. Partial updates use a single SQL statement so omitted fields are not overwritten by stale values during concurrent edits. Listing breaks timestamp ties by newest note ID.
+- **market-pulse**: Invalid currency codes and non-finite conversion amounts are rejected before network calls. Malformed or non-finite prices and FX values return readable errors. Unavailable volume no longer prevents an otherwise valid quote from being returned.
+- **youtube-transcript**: Client initialization failures, including invalid proxy configuration, now return readable errors from both tools.
+
+### Tests
+- Added regression coverage for database connection cleanup and rollback, literal tag matching, deterministic listing, invalid financial inputs and feed values, and transcript client initialization failures.
+
 ## [0.6.0] — 2026-10-01
 
 ### Fixed

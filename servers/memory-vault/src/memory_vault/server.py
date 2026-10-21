@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -58,14 +59,20 @@ def db_path() -> Path:
     return Path.home() / ".memory-vault.db"
 
 
-def _connect() -> sqlite3.Connection:
-    """Open a connection to the vault, creating the schema on first use."""
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
+    """Create the schema, commit or roll back the operation, and always close."""
     path = db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
-    return conn
+    try:
+        conn.row_factory = sqlite3.Row
+        conn.executescript(_SCHEMA)
+        # sqlite3's context manager handles transactions, but does not close.
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def _now() -> str:
@@ -117,7 +124,7 @@ def save_note(title: str, content: str, tags: str = "") -> str:
                 (title.strip(), content, normalized_tags, _now(), _now()),
             )
             note_id = cursor.lastrowid
-    except sqlite3.Error as exc:
+    except (sqlite3.Error, OSError) as exc:
         return f"Error: failed to save note: {exc}"
     return f"Saved note #{note_id}: {title.strip()}"
 
@@ -158,23 +165,23 @@ def update_note(
         new_tags = ", ".join(t.strip() for t in tags.split(",") if t.strip())
     try:
         with _connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM notes WHERE id = ?", (note_id,)
-            ).fetchone()
-            if row is None:
-                return f"Error: no note with ID {note_id}."
-            conn.execute(
-                "UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = ? "
+            # Keep omitted fields in SQL so concurrent partial updates cannot
+            # overwrite each other with values read before the other update.
+            cursor = conn.execute(
+                "UPDATE notes SET title = COALESCE(?, title), "
+                "content = COALESCE(?, content), tags = COALESCE(?, tags), updated_at = ? "
                 "WHERE id = ?",
                 (
-                    title.strip() if title is not None else row["title"],
-                    content if content is not None else row["content"],
-                    new_tags if new_tags is not None else row["tags"],
+                    title.strip() if title is not None else None,
+                    content,
+                    new_tags,
                     _now(),
                     note_id,
                 ),
             )
-    except sqlite3.Error as exc:
+            if cursor.rowcount == 0:
+                return f"Error: no note with ID {note_id}."
+    except (sqlite3.Error, OSError) as exc:
         return f"Error: failed to update note: {exc}"
     return f"Updated note #{note_id}."
 
@@ -210,7 +217,7 @@ def search_notes(query: str, limit: int = 20) -> str:
                 "WHERE notes_fts MATCH ? ORDER BY rank LIMIT ?",
                 (fts, limit),
             ).fetchall()
-    except sqlite3.Error as exc:
+    except (sqlite3.Error, OSError) as exc:
         return f"Error: search failed: {exc}"
     if not rows:
         return f"No notes match '{query}'."
@@ -242,21 +249,23 @@ def list_notes(tag: str = "", limit: int = 20) -> str:
         with _connect() as conn:
             if tag.strip():
                 total = conn.execute(
-                    "SELECT COUNT(*) FROM notes WHERE ',' || REPLACE(tags, ', ', ',') "
-                    "|| ',' LIKE '%,' || ? || ',%'",
+                    "SELECT COUNT(*) FROM notes WHERE "
+                    "INSTR(',' || LOWER(REPLACE(tags, ', ', ',')) || ',', "
+                    "',' || LOWER(?) || ',') > 0",
                     (tag.strip(),),
                 ).fetchone()[0]
                 rows = conn.execute(
-                    "SELECT * FROM notes WHERE ',' || REPLACE(tags, ', ', ',') || ',' "
-                    "LIKE '%,' || ? || ',%' ORDER BY updated_at DESC LIMIT ?",
+                    "SELECT * FROM notes WHERE "
+                    "INSTR(',' || LOWER(REPLACE(tags, ', ', ',')) || ',', "
+                    "',' || LOWER(?) || ',') > 0 ORDER BY updated_at DESC, id DESC LIMIT ?",
                     (tag.strip(), limit),
                 ).fetchall()
             else:
                 total = conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
                 rows = conn.execute(
-                    "SELECT * FROM notes ORDER BY updated_at DESC LIMIT ?", (limit,)
+                    "SELECT * FROM notes ORDER BY updated_at DESC, id DESC LIMIT ?", (limit,)
                 ).fetchall()
-    except sqlite3.Error as exc:
+    except (sqlite3.Error, OSError) as exc:
         return f"Error: failed to list notes: {exc}"
     if not rows:
         suffix = f" with tag '{tag.strip()}'" if tag.strip() else ""
@@ -285,7 +294,7 @@ def get_note(note_id: int) -> str:
     try:
         with _connect() as conn:
             row = conn.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
-    except sqlite3.Error as exc:
+    except (sqlite3.Error, OSError) as exc:
         return f"Error: failed to read note: {exc}"
     if row is None:
         return f"Error: no note with ID {note_id}."
@@ -310,7 +319,7 @@ def delete_note(note_id: int) -> str:
             if row is None:
                 return f"Error: no note with ID {note_id}."
             conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-    except sqlite3.Error as exc:
+    except (sqlite3.Error, OSError) as exc:
         return f"Error: failed to delete note: {exc}"
     return f"Deleted note #{note_id}: {row['title']}"
 

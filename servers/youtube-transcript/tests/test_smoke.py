@@ -1,5 +1,7 @@
 """Smoke tests for youtube-transcript (no network access required)."""
 
+import pytest
+
 from youtube_transcript import server
 
 
@@ -100,3 +102,14 @@ def test_blocked_ip_error_mentions_proxy():
         msg = server._friendly_error(exc, "dQw4w9WgXcQ")
         assert msg.startswith("Error")
         assert "YOUTUBE_TRANSCRIPT_PROXY" in msg
+
+
+@pytest.mark.parametrize("tool", [server.get_transcript, server.list_transcripts])
+def test_client_initialization_errors_are_reported(monkeypatch, tool):
+    def broken_client():
+        raise ValueError("Invalid proxy configuration")
+
+    monkeypatch.setattr(server, "_build_api", broken_client)
+    result = tool("dQw4w9WgXcQ")
+    assert result.startswith("Error:")
+    assert "Invalid proxy configuration" in result

@@ -131,8 +131,8 @@ def get_transcript(
     if video_id is None:
         return f"Error: could not extract a video ID from '{video}'."
     lang_list = [lang.strip() for lang in languages.split(",") if lang.strip()] or ["en"]
-    api = _build_api()
     try:
+        api = _build_api()
         fetched = api.fetch(video_id, languages=lang_list)
     except Exception as exc:  # noqa: BLE001 - report, don't crash
         return _friendly_error(exc, video_id)
@@ -175,8 +175,8 @@ def list_transcripts(video: str) -> str:
     video_id = extract_video_id(video)
     if video_id is None:
         return f"Error: could not extract a video ID from '{video}'."
-    api = _build_api()
     try:
+        api = _build_api()
         transcript_list = api.list(video_id)
         transcripts = list(transcript_list)
     except Exception as exc:  # noqa: BLE001
